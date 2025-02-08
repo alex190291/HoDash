@@ -1,0 +1,424 @@
+<!doctype html>
+<html>
+    <head>
+        <title>System Dashboard</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap"
+            rel="stylesheet"
+        />
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+        <style>
+            :root {
+                --bg-color: #0a0a0a;
+                --glass: rgba(18, 18, 18, 0.7);
+                --primary: #2d5a4f;
+                --text: #aaaaaa;
+            }
+            body.light-mode {
+                --bg-color: #f0f0f0;
+                --glass: rgba(5, 112, 85, 0.4);
+                --primary: #8bbabb;
+                --text: #000000;
+            }
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                font-family: "Inter", sans-serif;
+                background: var(--bg-color);
+                color: var(--text);
+                min-height: 100vh;
+                position: relative;
+                overflow-x: hidden;
+                transition:
+                    background 0.3s,
+                    color 0.3s;
+            }
+            .hexagons {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                overflow: hidden;
+                z-index: -1;
+            }
+            .hexagon {
+                position: absolute;
+                background: var(--primary);
+                clip-path: polygon(
+                    50% 0%,
+                    100% 25%,
+                    100% 75%,
+                    50% 100%,
+                    0% 75%,
+                    0% 25%
+                );
+                opacity: 0.1;
+                animation: pulse 10s infinite;
+            }
+            @keyframes pulse {
+                0%,
+                100% {
+                    transform: scale(1);
+                    opacity: 0.1;
+                }
+                50% {
+                    transform: scale(1.2);
+                    opacity: 0.15;
+                }
+            }
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 2rem;
+                position: relative;
+                z-index: 1;
+            }
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 1.5rem;
+                margin-bottom: 2rem;
+            }
+            .card {
+                background: var(--glass);
+                backdrop-filter: blur(10px);
+                border-radius: 1rem;
+                padding: 1.5rem;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                position: relative;
+                transition:
+                    background 0.3s,
+                    border 0.3s,
+                    transform 0.3s,
+                    box-shadow 0.3s;
+                cursor: pointer;
+                overflow: hidden;
+            }
+            .card:hover {
+                transform: scale(1.02);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            }
+            .card-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 1rem;
+            }
+            .card-title {
+                font-size: 1rem;
+                color: #7d7d7d;
+                margin-right: 0.5rem;
+            }
+            .stat-container {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                padding: 10px;
+            }
+            .chart-container {
+                position: relative;
+                width: 100%;
+                max-width: 300px;
+                height: 200px;
+                padding: 10px;
+            }
+            .chart-overlay {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 3rem;
+                color: rgba(255, 255, 255, 0.2);
+                pointer-events: none;
+            }
+            .color-labels {
+                display: flex;
+                flex-direction: row;
+                gap: 1rem;
+            }
+            .color-label {
+                display: flex;
+                align-items: center;
+                font-size: 0.8rem;
+            }
+            .color-box {
+                display: inline-block;
+                width: 16px;
+                height: 16px;
+                margin-right: 5px;
+                border-radius: 3px;
+                border: 1px solid #000;
+            }
+            .color-box.free {
+                background-color: #1e8449;
+            }
+            .color-box.usage {
+                background-color: #057055;
+            }
+            .color-box.used {
+                background-color: #922b21;
+            }
+            .color-box.cached {
+                background-color: #21618c;
+            }
+            .detail-view .graph-label {
+                font-size: 1rem;
+                font-weight: 600;
+                text-align: center;
+                margin-bottom: 0.5rem;
+            }
+            .detail-view canvas {
+                height: 200px !important;
+                max-height: 200px;
+                width: 100%;
+            }
+            table {
+                color: var(--text);
+                width: 100%;
+                border-collapse: collapse;
+            }
+            table th,
+            table td {
+                padding: 0.5rem;
+                text-align: left;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            button.update-btn {
+                background: var(--primary);
+                color: var(--text);
+                border: none;
+                padding: 0.3rem 0.5rem;
+                border-radius: 0.3rem;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                transition: background-color 0.6s ease;
+            }
+            .spinner {
+                display: inline-block;
+                width: 16px;
+                height: 16px;
+                border: 2px solid rgba(255, 255, 255, 0.4);
+                border-top: 2px solid rgba(255, 255, 255, 1);
+                border-radius: 50%;
+                animation: spin 0.6s linear infinite;
+                margin-left: 4px;
+            }
+            @keyframes spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+            .mode-toggle {
+                position: fixed;
+                bottom: 20px;
+                left: 20px;
+                background: var(--primary);
+                color: var(--text);
+                border: none;
+                border-radius: 50%;
+                width: 50px;
+                height: 50px;
+                font-size: 1.5rem;
+                cursor: pointer;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+                transition:
+                    background 0.3s,
+                    color 0.3s;
+                z-index: 1000;
+            }
+            .docker-card {
+                margin-top: 1.5rem;
+            }
+            .chart-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 1rem;
+                margin-bottom: 1rem;
+            }
+            .chart-row canvas {
+                flex: 1 1 calc(50% - 1rem);
+                height: 400px !important;
+            }
+            #network-detail-view .chart-row canvas {
+                height: 400px !important;
+            }
+            .detail-label {
+                font-weight: 600;
+                margin-bottom: 0.5rem;
+                text-align: center;
+            }
+            .status-indicator {
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                display: inline-block;
+            }
+            .status-green {
+                background-color: #1e8449;
+            }
+            .status-yellow {
+                background-color: #f1c40f;
+            }
+            .status-blue {
+                background-color: #21618c;
+            }
+            .status-red {
+                background-color: #c0392b;
+            }
+        </style>
+    </head>
+    <body
+        onload="generateHexagons(40); updateStats(); setInterval(updateStats, 500);"
+    >
+        <div class="hexagons" id="hexagon-container"></div>
+        <div class="container">
+            <div class="grid">
+                <!-- Memory -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">CPU</h2>
+                        <div class="color-labels">
+                            <div class="color-label">
+                                <span class="color-box usage"></span>Usage
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-container">
+                        <div class="chart-container">
+                            <canvas id="cpuChart"></canvas>
+                            <div id="cpuOverlay" class="chart-overlay">0%</div>
+                        </div>
+                    </div>
+                    <div
+                        class="detail-view"
+                        id="cpu-detail-view"
+                        style="display: none"
+                    >
+                        <div class="graph-label">24hr CPU Usage</div>
+                        <canvas id="cpuDetailChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Memory -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">RAM</h2>
+                        <div class="color-labels">
+                            <div class="color-label">
+                                <span class="color-box free"></span>Free
+                            </div>
+                            <div class="color-label">
+                                <span class="color-box used"></span>Used
+                            </div>
+                            <div class="color-label">
+                                <span class="color-box cached"></span>Cached
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-container">
+                        <div class="chart-container">
+                            <canvas id="memoryChart"></canvas>
+                            <div id="memoryOverlay" class="chart-overlay">
+                                0
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="detail-view"
+                        id="memory-detail-view"
+                        style="display: none"
+                    >
+                        <div class="graph-label">24hr RAM Usage</div>
+                        <canvas id="memoryDetailChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Disk -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Disk</h2>
+                        <div class="color-labels">
+                            <div class="color-label">
+                                <span class="color-box used"></span>Used
+                            </div>
+                            <div class="color-label">
+                                <span class="color-box free"></span>Free
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-container">
+                        <div class="chart-container">
+                            <canvas id="diskChart"></canvas>
+                            <div id="diskOverlay" class="chart-overlay">0</div>
+                        </div>
+                    </div>
+                    <div
+                        class="detail-view"
+                        id="disk-detail-view"
+                        style="display: none"
+                    >
+                        <div class="graph-label">7-Day Disk Used</div>
+                        <canvas id="diskHistoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Network -->
+            <div class="card">
+                <h2 class="card-title">Network Throughput</h2>
+                <div class="stat-container">
+                    <canvas id="networkChart"></canvas>
+                </div>
+                <div
+                    class="detail-view"
+                    id="network-detail-view"
+                    style="display: none"
+                >
+                    <div class="detail-label">Input Throughput</div>
+                    <div id="networkDetailInputCharts"></div>
+                    <div class="detail-label" style="margin-top: 1rem">
+                        Output Throughput
+                    </div>
+                    <div
+                        id="networkDetailOutputCharts"
+                        style="margin-top: 1rem"
+                    ></div>
+                </div>
+            </div>
+
+            <!-- Docker -->
+            <div class="card docker-card">
+                <h2 class="card-title">Docker Containers</h2>
+                <!-- "Check all updates" button -->
+                <button
+                    class="update-btn"
+                    id="checkAllBtn"
+                    style="margin-bottom: 1rem"
+                    onclick="checkAllUpdates()"
+                >
+                    ↻ Check for updates
+                </button>
+                <div class="docker-container">
+                    <table class="docker-table">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
